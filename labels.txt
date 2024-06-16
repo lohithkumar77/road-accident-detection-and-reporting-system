@@ -1,0 +1,3 @@
+0 Humans
+1 Accidents
+2 No Accidents
