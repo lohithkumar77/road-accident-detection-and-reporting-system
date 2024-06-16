@@ -1,11 +1,10 @@
 import cv2
-from cv2 import VideoCapture, waitKey
 import numpy as np
 from keras.models import load_model
-import  keras.utils as image
+import keras.utils as image
 import telepot
 import time
-import random
+import requests
 from twilio.rest import Client
 
 # Load the pre-trained Keras model and initialize the webcam
@@ -29,14 +28,15 @@ recipient_phone_number = "+917396198485"
 # Create a Twilio client
 client = Client(twilio_account_sid, twilio_auth_token)
 
-# List of random demonstration locations (replace with real locations)
-demo_locations = [
-    "New York, USA",
-    "Los Angeles, USA",
-    "London, UK",
-    "Paris, France",
-    "Tokyo, Japan",
-]
+# Function to get the current location using ipinfo.io
+def get_location():
+    response = requests.get('https://ipinfo.io')
+    data = response.json()
+    location = data['loc']  # This returns the latitude and longitude as a string "lat,long"
+    city = data['city']
+    region = data['region']
+    country = data['country']
+    return f"{city}, {region}, {country} ({location})"
 
 # Dictionary to keep track of user responses
 user_responses = {}
@@ -44,9 +44,9 @@ user_responses = {}
 # Function to send an alert to the other chat ID
 def send_alert_to_other_chat(location, timestamp):
     bot.sendMessage(chat_id, f"🚨 ALERT: Accident Detected 🚨\n"
-                                  f"📅 Timestamp: {timestamp} 🕒\n"
-                                  f"At Location: {location}\n"
-                                  f"No ambulance needed. Stay safe.")
+                             f"📅 Timestamp: {timestamp} 🕒\n"
+                             f"At Location: {location}\n"
+                             f"No ambulance needed. Stay safe.")
 
 while True:
     ret, frame = cap.read()
@@ -61,15 +61,15 @@ while True:
     cv2.imshow('Webcam', frame)
 
     if class_label == 'Accidents' and time.time() - last_detection_time >= 5:
-        # Generate a random location for demonstration
-        random_location = random.choice(demo_locations)
+        # Get the exact location
+        exact_location = get_location()
 
         cv2.imwrite('captured_image.jpg', frame)
         current_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
         with open('captured_image.jpg', 'rb') as photo:
             caption = f'''🚨 ALERT: {class_label} Detected 🚨
                         📅 Timestamp: {current_time} 🕒
-                        At Location: {random_location}
+                        At Location: {exact_location}
                         1️⃣ Ambulance on the way.
                         2️⃣ No ambulance needed.'''
             message = bot.sendPhoto(chat_id, photo, caption=caption)
@@ -77,7 +77,7 @@ while True:
         # Store the message ID in user_responses
         user_responses[message['message_id']] = {
             'timestamp': current_time,
-            'location': random_location,
+            'location': exact_location,
         }
 
         # Send an SMS using Twilio
@@ -86,7 +86,7 @@ while True:
             from_=twilio_phone_number,
             body=f"🚨 ALERT: {class_label} Detected 🚨\n"
                  f"📅 Timestamp: {current_time} 🕒\n"
-                 f"At Location: {random_location}\n"
+                 f"At Location: {exact_location}\n"
                  f"Please check Telegram for details.")
 
         last_detection_time = time.time()
@@ -97,9 +97,3 @@ while True:
 cap.release()
 cv2.destroyAllWindows()
 
-# Now, you can use a separate function to handle user responses and act accordingly.
-
-# Add your user response handling code here...
-
-while True:
-    time.sleep(1)
